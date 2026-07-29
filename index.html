@@ -1,0 +1,1741 @@
+<!doctype html>
+<html lang="en">
+    <head>
+        <meta charset="utf-8">
+        <meta http-equiv="X-UA-Compatible" content="IE=edge">
+        <meta name="viewport" content="initial-scale=1,user-scalable=no,maximum-scale=1,width=device-width">
+        <meta name="mobile-web-app-capable" content="yes">
+        <meta name="apple-mobile-web-app-capable" content="yes">
+        <link rel="stylesheet" href="css/leaflet.css">
+        <link rel="stylesheet" href="css/L.Control.Layers.Tree.css">
+        <link rel="stylesheet" href="css/L.Control.Locate.min.css">
+        <link rel="stylesheet" href="css/qgis2web.css">
+        <link rel="stylesheet" href="css/fontawesome-all.min.css">
+        <link rel="stylesheet" href="css/leaflet.photon.css">
+        <style>
+html, body, #map {
+    width: 100%;
+    height: 100%;
+    padding: 0;
+    margin: 0;
+}
+
+#creditos {
+    position: fixed;
+    bottom: 15px;
+    left: 15px;
+    z-index: 9999;
+    background: rgba(255,255,255,0.90);
+    padding: 10px;
+    border-radius: 6px;
+    font-family: Arial, sans-serif;
+    font-size: 12px;
+    line-height: 1.4;
+    max-width: 350px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+}
+</style>
+        <title>Cartografía de registros fotográficos históricos de la inundación de 1980 en Olavarría (Provincia de Buenos Aires)</title>
+    </head>
+    <body>
+<div id="creditos">
+    <strong>Cartografía de registros fotográficos históricos de la inundación de 1980 en Olavarría (Provincia de Buenos Aires)</strong><br>
+    <strong>Autor:</strong> Jean Paul Pellerin<br>
+    <strong>Software:</strong> QGIS<br>
+    <strong>Año:</strong> 2026
+    <strong>Fuente:</strong> Archivo histórico de Olavarría
+</div>
+        <div id="map">
+        </div>
+        <script src="js/qgis2web_expressions.js"></script>
+        <script src="js/leaflet.js"></script>
+        <script src="js/L.Control.Layers.Tree.min.js"></script>
+        <script src="js/L.Control.Locate.min.js"></script>
+        <script src="js/leaflet.rotatedMarker.js"></script>
+        <script src="js/leaflet.pattern.js"></script>
+        <script src="js/leaflet-hash.js"></script>
+        <script src="js/Autolinker.min.js"></script>
+        <script src="js/rbush.min.js"></script>
+        <script src="js/labelgun.min.js"></script>
+        <script src="js/labels.js"></script>
+        <script src="js/leaflet.photon.js"></script>
+        <script src="data/Barrios_1.js"></script>
+        <script src="data/ImagenInundacin1980imagen_inundacin_1980_2.js"></script>
+        <script>
+        var map = L.map('map', {
+            zoomControl:false, maxZoom:28, minZoom:1
+        })
+        var hash = new L.Hash(map);
+        map.attributionControl.setPrefix('<a href="https://github.com/qgis2web/qgis2web" target="_blank">qgis2web</a> &middot; <a href="https://leafletjs.com" title="A JS library for interactive maps">Leaflet</a> &middot; <a href="https://qgis.org">QGIS</a>');
+        var autolinker = new Autolinker({truncate: {length: 30, location: 'smart'}});
+        // remove popup's row if "visible-with-data"
+        function removeEmptyRowsFromPopupContent(content, feature) {
+         var tempDiv = document.createElement('div');
+         tempDiv.innerHTML = content;
+         var rows = tempDiv.querySelectorAll('tr');
+         for (var i = 0; i < rows.length; i++) {
+             var td = rows[i].querySelector('td.visible-with-data');
+             var key = td ? td.id : '';
+             if (td && td.classList.contains('visible-with-data') && feature.properties[key] == null) {
+                 rows[i].parentNode.removeChild(rows[i]);
+             }
+         }
+         return tempDiv.innerHTML;
+        }
+        // modify popup if contains media
+        function addClassToPopupIfMedia(content, popup) {
+            var tempDiv = document.createElement('div');
+            tempDiv.innerHTML = content;
+            var imgTd = tempDiv.querySelector('td img');
+            if (imgTd) {
+                var src = imgTd.getAttribute('src');
+                if (/\.(jpg|jpeg|png|gif|bmp|webp|avif)$/i.test(src)) {
+                    popup._contentNode.classList.add('media');
+                    var img = popup._contentNode.querySelector('td img');
+                    if (img) {
+                        // If already loaded (cache), update immediately
+                        if (img.complete && img.naturalHeight > 0) {
+                            popup.update();
+                        } else {
+                            img.addEventListener('load', function() {
+                                popup.update();
+                            });
+                            img.addEventListener('error', function() {
+                                popup.update();
+                            });
+                        }
+                    }
+                } else if (/\.(mp3|wav|ogg|aac)$/i.test(src)) {
+                    var audio = document.createElement('audio');
+                    audio.controls = true;
+                    audio.src = src;
+                    imgTd.parentNode.replaceChild(audio, imgTd);
+                    popup._contentNode.classList.add('media');
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else if (/\.(mp4|webm|ogg|mov)$/i.test(src)) {
+                    var video = document.createElement('video');
+                    video.controls = true;
+                    video.src = src;
+                    video.style.width = "400px";
+                    video.style.height = "300px";
+                    video.style.maxHeight = "60vh";
+                    video.style.maxWidth = "60vw";
+                    imgTd.parentNode.replaceChild(video, imgTd);
+                    popup._contentNode.classList.add('media');
+                    // Aggiorna il popup quando il video carica i metadati
+                    video.addEventListener('loadedmetadata', function() {
+                        popup.update();
+                    });
+                    setTimeout(function() {
+                        popup.setContent(tempDiv.innerHTML);
+                        popup.update();
+                    }, 10);
+                } else {
+                    popup._contentNode.classList.remove('media');
+                }
+            } else {
+                popup._contentNode.classList.remove('media');
+            }
+        }
+        var title = new L.Control({'position':'topright'});
+        title.onAdd = function (map) {
+            this._div = L.DomUtil.create('div', 'info');
+            this.update();
+            return this._div;
+        };
+        title.update = function () {
+            this._div.innerHTML = '<h2>Cartografía de registros fotográficos históricos de la inundación de 1980 en Olavarría (Provincia de Buenos Aires)</h2>';
+        };
+        title.addTo(map);
+        var zoomControl = L.control.zoom({
+            position: 'topleft'
+        }).addTo(map);
+        L.control.locate({locateOptions: {maxZoom: 19}}).addTo(map);
+        var bounds_group = new L.featureGroup([]);
+        function setBounds() {
+            if (bounds_group.getLayers().length) {
+                map.fitBounds(bounds_group.getBounds());
+            }
+        }
+        map.createPane('pane_OSMStandard_0');
+        map.getPane('pane_OSMStandard_0').style.zIndex = 400;
+        var layer_OSMStandard_0 = L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            pane: 'pane_OSMStandard_0',
+            opacity: 1.0,
+            attribution: '<a href="https://www.openstreetmap.org/copyright">© OpenStreetMap contributors, CC-BY-SA</a>',
+            minZoom: 1,
+            maxZoom: 28,
+            minNativeZoom: 0,
+            maxNativeZoom: 19
+        });
+        layer_OSMStandard_0;
+        map.addLayer(layer_OSMStandard_0);
+        function pop_Barrios_1(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">barrio</th>\
+                        <td class="visible-with-data" id="barrio">' + (feature.properties['barrio'] !== null ? autolinker.link(String(feature.properties['barrio']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">localidad</th>\
+                        <td class="visible-with-data" id="localidad">' + (feature.properties['localidad'] !== null ? autolinker.link(String(feature.properties['localidad']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_Barrios_1_0(feature) {
+            switch(String(feature.properties['barrio'])) {
+                case '10 de Junio':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case '12 de Octubre':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'A. Castro':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Acupo':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Acupo II':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Acupo III':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Alberdi':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'AOMA':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Ara San Juan':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'B.I.C.E':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Bancario III':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Bancarios':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Bancarios II':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Banco Provincia':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'BARRIO AOMA CAL Y PIEDRA SOECO':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Barrio Costera Sur':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Barrio La Loma':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Belen':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Belgrano':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Bella Vista':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Carlos Pellegrini':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'CECO':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'CECO II':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Choferes':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Cnel. Dorrego':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Cuarteles':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Educadores':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'El Hornero':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'El Pasillo':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'El progreso':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Escuela 6':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Eucaliptus':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Evita':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Ex Comb. Malvinas':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Fac. Quiroga':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Fac. Quiroga II':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Francisco Moreno':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Independencia':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Isaura':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Ituzaingo':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Ituzaingó Norte':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Jardin':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Junta Vecinal 4 de Octubre':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Junta Vecinal Matadero':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Junta Vecinal Procasa':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'La Araña':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'La Candela':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Los Inundados':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Los Reseros':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Los Robles':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Los Sauces':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Lourdes':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Lujan':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Luz y Fuerza':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Mariano Moreno':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Martin Fierro':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Microcentro':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Municipal':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Nicolas Avellaneda':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Norte':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Obrero':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Parque Arano':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Paulownia':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Pellegrini':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Piquelado':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Plan 24 Viv':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Plan 25 Viviendas':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Plan 86 Viviendas - Solidaridad':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Plan Abuelos':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Plan Novios':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Prado Español':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Procasa V':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Provincias Argentinas':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Provincias Unidas':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Pueblo Nuevo':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Pueyrredon':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'PYM':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'René Favaloro':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Roca Merlo':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'San Carlos':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'San Lorenzo':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'San Martin':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'San Vicente':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Sarmiento':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Sarmiento Norte':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Sauveterre':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Soc. de Fomento 25 de Noviembre':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Soc. de Fomento Hipolito Irigoyen':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Sto Cabral':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Tiro Federal':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Trabajadores I':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Trabajadores II':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Uocra':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Urquiza':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Uta':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Villa Aurora':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Villa Floresta':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Villa Magdalena':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Villa Mailyn':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Cementerio':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Club Estudiantes':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Club Racing':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Ferrosur':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Industrial':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Maxima':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Parque Cerrito':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Parque Helios Eseverri':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Parque Mitre':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Parque Sur':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona Quintas':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                case 'Zona UCPBA':
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+                default:
+                    return {
+                pane: 'pane_Barrios_1',
+                opacity: 1,
+                color: 'rgba(255,0,0,1.0)',
+                dashArray: '2.0,1.0',
+                lineCap: 'butt',
+                lineJoin: 'miter',
+                weight: 1.0, 
+                fillOpacity: 0,
+                interactive: true,
+            }
+                    break;
+            }
+        }
+        map.createPane('pane_Barrios_1');
+        map.getPane('pane_Barrios_1').style.zIndex = 401;
+        map.getPane('pane_Barrios_1').style['mix-blend-mode'] = 'normal';
+        var layer_Barrios_1 = new L.geoJson(json_Barrios_1, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_Barrios_1',
+            layerName: 'layer_Barrios_1',
+            pane: 'pane_Barrios_1',
+            onEachFeature: pop_Barrios_1,
+            style: style_Barrios_1_0,
+        });
+        bounds_group.addLayer(layer_Barrios_1);
+        map.addLayer(layer_Barrios_1);
+        function pop_ImagenInundacin1980imagen_inundacin_1980_2(feature, layer) {
+            var popupContent = '<table>\
+                    <tr>\
+                        <th scope="row">Ubicación</th>\
+                        <td class="visible-with-data" id="Ubicación">' + (feature.properties['Ubicación'] !== null ? autolinker.link(String(feature.properties['Ubicación']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <th scope="row">Fuente</th>\
+                        <td class="visible-with-data" id="Fuente">' + (feature.properties['Fuente'] !== null ? autolinker.link(String(feature.properties['Fuente']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Descripción'] !== null ? autolinker.link(String(feature.properties['Descripción']).replace(/'/g, '\'').toLocaleString()) : '') + '</td>\
+                    </tr>\
+                    <tr>\
+                        <td colspan="2">' + (feature.properties['Imagen'] !== null ? '<img src="images/' + String(feature.properties['Imagen']).replace(/[\\/:]/g, '_').trim().replace(/'/g, '\'').replace(/"/g, '&quot;') + '">' : '') + '</td>\
+                    </tr>\
+                </table>';
+            var content = removeEmptyRowsFromPopupContent(popupContent, feature);
+			layer.on('popupopen', function(e) {
+				addClassToPopupIfMedia(content, e.popup);
+			});
+			layer.bindPopup(content, { maxHeight: 400 });
+        }
+
+        function style_ImagenInundacin1980imagen_inundacin_1980_2_0() {
+            return {
+                pane: 'pane_ImagenInundacin1980imagen_inundacin_1980_2',
+        rotationAngle: 0.0174533,
+        rotationOrigin: 'center center',
+        icon: L.icon({
+            iconUrl: 'markers/ImagenInundacin1980imagen_inundacin_1980_2.svg',
+            iconSize: [26.599999999999998, 26.599999999999998]
+        }),
+                interactive: true,
+            }
+        }
+        map.createPane('pane_ImagenInundacin1980imagen_inundacin_1980_2');
+        map.getPane('pane_ImagenInundacin1980imagen_inundacin_1980_2').style.zIndex = 402;
+        map.getPane('pane_ImagenInundacin1980imagen_inundacin_1980_2').style['mix-blend-mode'] = 'normal';
+        var layer_ImagenInundacin1980imagen_inundacin_1980_2 = new L.geoJson(json_ImagenInundacin1980imagen_inundacin_1980_2, {
+            attribution: '',
+            interactive: true,
+            dataVar: 'json_ImagenInundacin1980imagen_inundacin_1980_2',
+            layerName: 'layer_ImagenInundacin1980imagen_inundacin_1980_2',
+            pane: 'pane_ImagenInundacin1980imagen_inundacin_1980_2',
+            onEachFeature: pop_ImagenInundacin1980imagen_inundacin_1980_2,
+            pointToLayer: function (feature, latlng) {
+                var context = {
+                    feature: feature,
+                    variables: {}
+                };
+                return L.marker(latlng, style_ImagenInundacin1980imagen_inundacin_1980_2_0(feature));
+            },
+        });
+        bounds_group.addLayer(layer_ImagenInundacin1980imagen_inundacin_1980_2);
+        map.addLayer(layer_ImagenInundacin1980imagen_inundacin_1980_2);
+        var overlaysTree = [
+            {label: '<img src="legend/ImagenInundacin1980imagen_inundacin_1980_2.png" /> Imagen Inundación 1980 — imagen_inundacin_1980', layer: layer_ImagenInundacin1980imagen_inundacin_1980_2},
+            {label: 'Barrios<br /><table><tr><td style="text-align: center;"><img src="legend/Barrios_1_10deJunio0.png" /></td><td>10 de Junio</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_12deOctubre1.png" /></td><td>12 de Octubre</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ACastro2.png" /></td><td>A. Castro</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Acupo3.png" /></td><td>Acupo</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_AcupoII4.png" /></td><td>Acupo II</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_AcupoIII5.png" /></td><td>Acupo III</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Alberdi6.png" /></td><td>Alberdi</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_AOMA7.png" /></td><td>AOMA</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_AraSanJuan8.png" /></td><td>Ara San Juan</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_BICE9.png" /></td><td>B.I.C.E</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_BancarioIII10.png" /></td><td>Bancario III</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Bancarios11.png" /></td><td>Bancarios</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_BancariosII12.png" /></td><td>Bancarios II</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_BancoProvincia13.png" /></td><td>Banco Provincia</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_BARRIOAOMACALYPIEDRASOECO14.png" /></td><td>BARRIO AOMA CAL Y PIEDRA SOECO</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_BarrioCosteraSur15.png" /></td><td>Barrio Costera Sur</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_BarrioLaLoma16.png" /></td><td>Barrio La Loma</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Belen17.png" /></td><td>Belen</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Belgrano18.png" /></td><td>Belgrano</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_BellaVista19.png" /></td><td>Bella Vista</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_CarlosPellegrini20.png" /></td><td>Carlos Pellegrini</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_CECO21.png" /></td><td>CECO</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_CECOII22.png" /></td><td>CECO II</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Choferes23.png" /></td><td>Choferes</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_CnelDorrego24.png" /></td><td>Cnel. Dorrego</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Cuarteles25.png" /></td><td>Cuarteles</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Educadores26.png" /></td><td>Educadores</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ElHornero27.png" /></td><td>El Hornero</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ElPasillo28.png" /></td><td>El Pasillo</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Elprogreso29.png" /></td><td>El progreso</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Escuela630.png" /></td><td>Escuela 6</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Eucaliptus31.png" /></td><td>Eucaliptus</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Evita32.png" /></td><td>Evita</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ExCombMalvinas33.png" /></td><td>Ex Comb. Malvinas</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_FacQuiroga34.png" /></td><td>Fac. Quiroga</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_FacQuirogaII35.png" /></td><td>Fac. Quiroga II</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_FranciscoMoreno36.png" /></td><td>Francisco Moreno</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Independencia37.png" /></td><td>Independencia</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Isaura38.png" /></td><td>Isaura</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Ituzaingo39.png" /></td><td>Ituzaingo</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ItuzaingóNorte40.png" /></td><td>Ituzaingó Norte</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Jardin41.png" /></td><td>Jardin</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_JuntaVecinal4deOctubre42.png" /></td><td>Junta Vecinal 4 de Octubre</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_JuntaVecinalMatadero43.png" /></td><td>Junta Vecinal Matadero</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_JuntaVecinalProcasa44.png" /></td><td>Junta Vecinal Procasa</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_LaAraña45.png" /></td><td>La Araña</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_LaCandela46.png" /></td><td>La Candela</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_LosInundados47.png" /></td><td>Los Inundados</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_LosReseros48.png" /></td><td>Los Reseros</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_LosRobles49.png" /></td><td>Los Robles</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_LosSauces50.png" /></td><td>Los Sauces</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Lourdes51.png" /></td><td>Lourdes</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Lujan52.png" /></td><td>Lujan</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_LuzyFuerza53.png" /></td><td>Luz y Fuerza</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_MarianoMoreno54.png" /></td><td>Mariano Moreno</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_MartinFierro55.png" /></td><td>Martin Fierro</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Microcentro56.png" /></td><td>Microcentro</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Municipal57.png" /></td><td>Municipal</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_NicolasAvellaneda58.png" /></td><td>Nicolas Avellaneda</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Norte59.png" /></td><td>Norte</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Obrero60.png" /></td><td>Obrero</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ParqueArano61.png" /></td><td>Parque Arano</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Paulownia62.png" /></td><td>Paulownia</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Pellegrini63.png" /></td><td>Pellegrini</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Piquelado64.png" /></td><td>Piquelado</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Plan24Viv65.png" /></td><td>Plan 24 Viv</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Plan25Viviendas66.png" /></td><td>Plan 25 Viviendas</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Plan86ViviendasSolidaridad67.png" /></td><td>Plan 86 Viviendas - Solidaridad</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_PlanAbuelos68.png" /></td><td>Plan Abuelos</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_PlanNovios69.png" /></td><td>Plan Novios</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_PradoEspañol70.png" /></td><td>Prado Español</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ProcasaV71.png" /></td><td>Procasa V</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ProvinciasArgentinas72.png" /></td><td>Provincias Argentinas</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ProvinciasUnidas73.png" /></td><td>Provincias Unidas</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_PuebloNuevo74.png" /></td><td>Pueblo Nuevo</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Pueyrredon75.png" /></td><td>Pueyrredon</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_PYM76.png" /></td><td>PYM</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_RenéFavaloro77.png" /></td><td>René Favaloro</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_RocaMerlo78.png" /></td><td>Roca Merlo</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_SanCarlos79.png" /></td><td>San Carlos</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_SanLorenzo80.png" /></td><td>San Lorenzo</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_SanMartin81.png" /></td><td>San Martin</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_SanVicente82.png" /></td><td>San Vicente</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Sarmiento83.png" /></td><td>Sarmiento</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_SarmientoNorte84.png" /></td><td>Sarmiento Norte</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Sauveterre85.png" /></td><td>Sauveterre</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_SocdeFomento25deNoviembre86.png" /></td><td>Soc. de Fomento 25 de Noviembre</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_SocdeFomentoHipolitoIrigoyen87.png" /></td><td>Soc. de Fomento Hipolito Irigoyen</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_StoCabral88.png" /></td><td>Sto Cabral</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_TiroFederal89.png" /></td><td>Tiro Federal</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_TrabajadoresI90.png" /></td><td>Trabajadores I</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_TrabajadoresII91.png" /></td><td>Trabajadores II</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Uocra92.png" /></td><td>Uocra</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Urquiza93.png" /></td><td>Urquiza</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_Uta94.png" /></td><td>Uta</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_VillaAurora95.png" /></td><td>Villa Aurora</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_VillaFloresta96.png" /></td><td>Villa Floresta</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_VillaMagdalena97.png" /></td><td>Villa Magdalena</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_VillaMailyn98.png" /></td><td>Villa Mailyn</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaCementerio99.png" /></td><td>Zona Cementerio</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaClubEstudiantes100.png" /></td><td>Zona Club Estudiantes</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaClubRacing101.png" /></td><td>Zona Club Racing</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaFerrosur102.png" /></td><td>Zona Ferrosur</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaIndustrial103.png" /></td><td>Zona Industrial</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaMaxima104.png" /></td><td>Zona Maxima</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaParqueCerrito105.png" /></td><td>Zona Parque Cerrito</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaParqueHeliosEseverri106.png" /></td><td>Zona Parque Helios Eseverri</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaParqueMitre107.png" /></td><td>Zona Parque Mitre</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaParqueSur108.png" /></td><td>Zona Parque Sur</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaQuintas109.png" /></td><td>Zona Quintas</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_ZonaUCPBA110.png" /></td><td>Zona UCPBA</td></tr><tr><td style="text-align: center;"><img src="legend/Barrios_1_111.png" /></td><td></td></tr></table>', layer: layer_Barrios_1},
+            {label: "OSM Standard", layer: layer_OSMStandard_0},]
+        var lay = L.control.layers.tree(null, overlaysTree,{
+            //namedToggle: true,
+            //selectorBack: false,
+            //closedSymbol: '&#8862; &#x1f5c0;',
+            //openedSymbol: '&#8863; &#x1f5c1;',
+            //collapseAll: 'Collapse all',
+            //expandAll: 'Expand all',
+            collapsed: true,
+        });
+        lay.addTo(map);
+        setBounds();
+        </script>        
+    </body>
+</html>
